@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 function FileDropPage({ onBack }) {
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [serverStatus, setServerStatus] = useState('checking');
 
   const handleFileDrop = (e) => {
     e.preventDefault();
@@ -21,27 +22,63 @@ function FileDropPage({ onBack }) {
     if (!file) return;
 
     setLoading(true);
+    setError(null);
+    
     const formData = new FormData();
     formData.append('video', file);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const response = await fetch('http://localhost:5000/analyze', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       if (response.ok) {
         setResult(data);
       } else {
-        setError(data.error || 'Analysis failed');
+        setError(data.error || 'Analysis failed - Server returned an error');
       }
     } catch (err) {
-      setError('Failed to connect to server');
+      console.error('Error details:', err);
+      setError('Failed to connect to server - Please ensure the backend server is running');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/health', {
+          method: 'GET',
+          mode: 'cors',
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        if (response.ok) {
+          setServerStatus('connected');
+        } else {
+          setServerStatus('error');
+        }
+      } catch (err) {
+        setServerStatus('error');
+      }
+    };
+    
+    checkServer();
+  }, []);
 
   return (
     <div className="app-content">
@@ -97,6 +134,12 @@ function FileDropPage({ onBack }) {
           <p className="transaction-hash">
             TX: {result.transaction_hash.slice(0, 10)}...
           </p>
+        </div>
+      )}
+
+      {serverStatus === 'error' && (
+        <div className="error-message">
+          Backend server not connected. Please ensure the Python backend is running.
         </div>
       )}
     </div>

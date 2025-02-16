@@ -15,7 +15,17 @@ from flask_cors import CORS
 import tempfile
 
 app = Flask(__name__)
+
+# Simplest possible CORS setup
 CORS(app)
+
+# Add CORS headers to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
 
 # Load environment variables
 load_dotenv()
@@ -206,6 +216,10 @@ def analyze_video():
     finally:
         # Clean up temporary file
         os.unlink(video_path)
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'ok'}), 200
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
